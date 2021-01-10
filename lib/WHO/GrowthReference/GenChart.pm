@@ -16,7 +16,7 @@ our %SPEC;
 
 $SPEC{gen_who_growth_chart_from_table} = {
     v => 1.1,
-    summary => 'Create WHO growth chart ()',
+    summary => 'Create WHO growth chart (weight/height/BMI)',
     args => {
         gender => {
             schema => ['str*', in=>['M','F']],
