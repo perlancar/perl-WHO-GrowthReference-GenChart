@@ -10,7 +10,7 @@ use strict;
 use warnings;
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(gen_who_growth_chart_from_tsv);
+our @EXPORT_OK = qw(gen_who_growth_chart_from_table);
 
 our %SPEC;
 
