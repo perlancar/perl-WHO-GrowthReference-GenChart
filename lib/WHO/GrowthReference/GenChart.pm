@@ -27,6 +27,9 @@ $SPEC{gen_who_growth_chart_from_table} = {
             req => 1,
             pos => 0,
         },
+        name => {
+            schema => 'str*',
+        },
         dob => {
             schema => 'date*',
             req => 1,
@@ -53,10 +56,10 @@ Example:
     2021-02-01,116,18.4
 
 _
-            schema => 'text*',
+            schema => 'str*',
             req => 1,
             pos => 2,
-            cmdline_aliases => 'stdin_or_file',
+            cmdline_src => 'stdin_or_file',
         },
         which => {
             summary => 'Specify which chart to generate',
@@ -111,7 +114,7 @@ sub gen_who_growth_chart_from_table {
 
     my $chart = Chart::Gnuplot->new(
         output   => $tempfilename,
-        title    => "WHO $which chart".($args{who} ? " for $args{who}" : ""),
+        title    => "WHO $which chart".($args{name} ? " for $args{name}" : ""),
         xlabel   => 'age (years)',
         ylabel   => ($which eq 'height' ? 'height (cm)' : $which eq 'weight' ? 'weight (kg)' : 'BMI'),
         #xtics    => {labelfmt=>'%H:%M'},
@@ -137,16 +140,47 @@ sub gen_who_growth_chart_from_table {
                 }
                 $time = Time::Local::timelocal(0, 0, 0, $3, $2-1, $1);
             }
+            use DD;
             my $res = WHO::GrowthReference::Table::get_who_growth_reference(
                 gender => $gender,
-                defined($date_key) ? (dob => $dob, today => $time) : (age => 365.25*86400*$row->{$age_key}),
+                defined($date_key) ? (dob => $dob, now => $time) : (age => 365.25*86400*$row->{$age_key}),
                 defined($height_key) ? (height => $row->{$height_key}) : (),
-                defined($weight_key) ? (height => $row->{$weight_key}) : (),
+                defined($weight_key) ? (weight => $row->{$weight_key}) : (),
             );
             return [400, "Table row[$i]: Cannot get WHO growth reference data: $res->[0] - $res->[1]"]
                 unless $res->[0] == 200;
+            $res->[2]{age} =~ /^(\d+(?:\.\d+)?)/ or die; push @age, $1/12;
             if (defined $height_key) {
                 push @height, $row->{$height_key};
+                push @height_z0 , $res->[2]{height_Z0};
+                push @height_zm1, $res->[2]{'height_Z-1'};
+                push @height_z1 , $res->[2]{'height_Z+1'};
+                push @height_zm2, $res->[2]{'height_Z-2'};
+                push @height_z2 , $res->[2]{'height_Z+2'};
+                push @height_zm3, $res->[2]{'height_Z-3'};
+                push @height_z3 , $res->[2]{'height_Z+3'};
+            }
+            if (defined $weight_key) {
+                push @weight, $row->{$weight_key};
+                push @weight_z0 , $res->[2]{weight_Z0};
+                push @weight_zm1, $res->[2]{'weight_Z-1'};
+                push @weight_z1 , $res->[2]{'weight_Z+1'};
+                push @weight_zm2, $res->[2]{'weight_Z-2'};
+                push @weight_z2 , $res->[2]{'weight_Z+2'};
+                push @weight_zm3, $res->[2]{'weight_Z-3'};
+                push @weight_z3 , $res->[2]{'weight_Z+3'};
+            }
+            if (defined $height_key && defined $weight_key) {
+                if ($row->{$weight_key} && $row->{$height_key}) {
+                    push @bmi, $row->{$weight_key} / ($row->{$height_key}/100)**2;
+                } else {
+                    push @bmi, undef;
+                }
+                push @bmi_z0 , $res->[2]{bmi_Z0};
+                push @bmi_zm1, $res->[2]{'bmi_Z-1'};
+                push @bmi_z1 , $res->[2]{'bmi_Z+1'};
+                push @bmi_zm2, $res->[2]{'bmi_Z-2'};
+                push @bmi_z2 , $res->[2]{'bmi_Z+2'};
             }
         }
     } # SET_DATA_SETS
@@ -154,13 +188,164 @@ sub gen_who_growth_chart_from_table {
     # PLOT
     my @datasets;
 
-    push @datasets, Chart::Gnuplot::DataSet->new(
-        xdata => \@age,
-        ydata => \@height,
-        #title => 'Urine output (ml/h)',
-        color => 'red',
-        style => 'linespoints',
-    );
+    if ($which eq 'height') {
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@height,
+            title => 'height',
+            color => 'blue',
+            style => 'linespoints',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@height_z0,
+            title => 'height z0',
+            color => 'green',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@height_z1,
+            title => 'height z+1',
+            color => 'orange',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@height_zm1,
+            title => 'height z-1',
+            color => 'orange',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@height_z2,
+            title => 'height z+2',
+            color => 'red',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@height_zm2,
+            title => 'height z-2',
+            color => 'red',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@height_z3,
+            title => 'height z+3',
+            color => 'black',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@height_zm3,
+            title => 'height z-3',
+            color => 'black',
+            style => 'lines',
+        );
+    } elsif ($which eq 'weight') {
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@weight,
+            title => 'weight',
+            color => 'blue',
+            style => 'linespoints',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@weight_z0,
+            title => 'weight z0',
+            color => 'green',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@weight_z1,
+            title => 'weight z+1',
+            color => 'orange',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@weight_zm1,
+            title => 'weight z-1',
+            color => 'orange',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@weight_z2,
+            title => 'weight z+2',
+            color => 'red',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@weight_zm2,
+            title => 'weight z-2',
+            color => 'red',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@weight_z3,
+            title => 'weight z+3',
+            color => 'black',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@weight_zm3,
+            title => 'weight z-3',
+            color => 'black',
+            style => 'lines',
+        );
+    } elsif ($which eq 'bmi') {
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@bmi,
+            title => 'bmi',
+            color => 'blue',
+            style => 'linespoints',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@bmi_z0,
+            title => 'bmi z0',
+            color => 'green',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@bmi_z1,
+            title => 'bmi z+1',
+            color => 'orange',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@bmi_zm1,
+            title => 'bmi z-1',
+            color => 'orange',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@bmi_z2,
+            title => 'bmi z+2',
+            color => 'red',
+            style => 'lines',
+        );
+        push @datasets, Chart::Gnuplot::DataSet->new(
+            xdata => \@age,
+            ydata => \@bmi_zm2,
+            title => 'bmi z-2',
+            color => 'red',
+            style => 'lines',
+        );
+    }
 
     $chart->plot2d(@datasets);
 
