@@ -12,10 +12,6 @@ use warnings;
 use Exporter qw(import);
 our @EXPORT_OK = qw(gen_who_growth_chart_from_tsv);
 
-use Data::Clone;
-use Hash::Subset qw(hash_subset);
-use Health::BladderDiary::GenTable;
-
 our %SPEC;
 
 $SPEC{gen_who_growth_chart_from_table} = {
@@ -140,7 +136,6 @@ sub gen_who_growth_chart_from_table {
                 }
                 $time = Time::Local::timelocal(0, 0, 0, $3, $2-1, $1);
             }
-            use DD;
             my $res = WHO::GrowthReference::Table::get_who_growth_reference(
                 gender => $gender,
                 defined($date_key) ? (dob => $dob, now => $time) : (age => 365.25*86400*$row->{$age_key}),
